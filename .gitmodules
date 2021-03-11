@@ -1,0 +1,3 @@
+[submodule "RazorLight"]
+	path = RazorLight
+	url = git@github.com:Yuki-Nagato/RazorLight.git
