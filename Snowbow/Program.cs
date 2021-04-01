@@ -1,20 +1,18 @@
-﻿using RazorLight;
-using System;
+﻿using Newtonsoft.Json.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Snowbow {
 	class Program {
 		static async Task Main(string[] args) {
-			var engine = new RazorLightEngineBuilder()
-				.UseEmbeddedResourcesProject(System.Reflection.Assembly.GetEntryAssembly())
-				.UseMemoryCachingProvider()
-				.Build();
-
-			string template = "<div>@Model.Content</div>";
-			var model = new { Content = "長門有希 <^_^>" };
-
-			string result = await engine.CompileRenderStringAsync("templateKey", template, model);
-			Console.WriteLine(result);
+			CancellationToken cancellationToken = new CancellationToken();
+			Argument.MakeEffect(args);
+			if (Argument.Verb == "build") {
+				await Subprocess.BuildAsync(cancellationToken);
+			}
+			else if (Argument.Verb == "server") {
+				await Subprocess.ServerAsync(cancellationToken);
+			}
 		}
 	}
 }

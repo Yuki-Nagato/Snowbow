@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Snowbow", "Snowbow\Snowbow.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RazorLight", "RazorLight\src\RazorLight\RazorLight.csproj", "{0BE365DB-C910-441F-8A00-7942DD4BA4B7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Snowbow.Test", "Snowbow.Test\Snowbow.Test.csproj", "{545F8D6E-9D28-4932-99CA-0F7CAA97FF0A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{0BE365DB-C910-441F-8A00-7942DD4BA4B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0BE365DB-C910-441F-8A00-7942DD4BA4B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0BE365DB-C910-441F-8A00-7942DD4BA4B7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{545F8D6E-9D28-4932-99CA-0F7CAA97FF0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{545F8D6E-9D28-4932-99CA-0F7CAA97FF0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{545F8D6E-9D28-4932-99CA-0F7CAA97FF0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{545F8D6E-9D28-4932-99CA-0F7CAA97FF0A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

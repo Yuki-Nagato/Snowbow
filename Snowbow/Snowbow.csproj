@@ -4,7 +4,18 @@
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net5.0</TargetFramework>
 		<PreserveCompilationContext>true</PreserveCompilationContext>
+		<Nullable>enable</Nullable>
 	</PropertyGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="CommandLineParser" Version="2.8.0" />
+	  <PackageReference Include="HtmlAgilityPack" Version="1.11.31" />
+	  <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+	  <PackageReference Include="System.ServiceModel.Syndication" Version="5.0.0" />
+	  <PackageReference Include="Vlingo.UUID" Version="1.6.0" />
+	  <PackageReference Include="YamlDotNet" Version="9.1.4" />
+	  <PackageReference Include="YukiToolkit" Version="4.0.0" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\RazorLight\src\RazorLight\RazorLight.csproj" />
