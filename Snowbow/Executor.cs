@@ -10,7 +10,7 @@ using YukiToolkit.UsefulConsts;
 
 namespace Snowbow {
 	class Executor {
-		public static async Task<(int exitCode, string stdout, string stderr)> ExecAsync(string fileName, string arguments, string? stdin, CancellationToken cancellationToken) {
+		public static async Task<int> ExecAsync(string fileName, string arguments, TextReader? stdin, TextWriter? stdout, TextWriter? stderr, CancellationToken cancellationToken) {
 			using var p = new Process();
 			p.StartInfo.FileName = fileName;
 			p.StartInfo.Arguments = arguments;
@@ -23,30 +23,58 @@ namespace Snowbow {
 			p.StartInfo.StandardInputEncoding = ConstStuff.UniversalUtf8Encoding;
 			p.StartInfo.StandardOutputEncoding = ConstStuff.UniversalUtf8Encoding;
 			p.StartInfo.StandardErrorEncoding = ConstStuff.UniversalUtf8Encoding;
-			//if (stdout != null) {
-			//	p.OutputDataReceived += (sender, args) => {
-			//		if (string.IsNullOrEmpty(args.Data)) return;
-			//		stdout.Write(args.Data);
-			//		stdout.Flush();
-			//	};
-			//}
-			//if(stderr != null) {
-			//	p.ErrorDataReceived += (sender, args) => {
-			//		if (string.IsNullOrEmpty(args.Data)) return;
-			//		stderr.Write(args.Data);
-			//		stderr.Flush();
-			//	};
-			//}
 			p.Start();
-			//p.BeginOutputReadLine();
-			//p.BeginErrorReadLine();
-			p.StandardInput.Write(stdin);
-			p.StandardInput.Close();
-			var stdoutTask = p.StandardOutput.ReadToEndAsync();
-			var stderrTask = p.StandardError.ReadToEndAsync();
-			var output = await Task.WhenAll(stdoutTask, stderrTask);
+
+			// stdin, stdout, stderr at the same time
+			var stdinTask = Task.Run(async () => {
+				if(stdin != null) {
+					var buf = new char[1024];
+					while (true) {
+						var len = await stdin.ReadAsync(buf, 0, buf.Length);
+						if(len <= 0) {
+							break;
+						}
+						await p.StandardInput.WriteAsync(buf, 0, len);
+						await p.StandardInput.FlushAsync();
+					}
+				}
+				p.StandardInput.Close();
+			}, cancellationToken);
+			var stdoutTask = Task.Run(async () => {
+				var buf = new char[1024];
+				while (true) {
+					var len = await p.StandardOutput.ReadAsync(buf, 0, buf.Length);
+					if (len <= 0) {
+						break;
+					}
+					if (stdout != null) {
+						await stdout.WriteAsync(buf, 0, len);
+						await stdout.FlushAsync();
+					}
+				}
+				if (stdout != null) {
+					stdout.Close();
+				}
+			}, cancellationToken);
+			var stderrTask = Task.Run(async () => {
+				var buf = new char[1024];
+				while (true) {
+					var len = await p.StandardError.ReadAsync(buf, 0, buf.Length);
+					if (len <= 0) {
+						break;
+					}
+					if (stderr != null) {
+						await stderr.WriteAsync(buf, 0, len);
+						await stderr.FlushAsync();
+					}
+				}
+				if (stderr != null) {
+					stderr.Close();
+				}
+			}, cancellationToken);
+			await Task.WhenAll(stdinTask, stdoutTask, stderrTask);
 			await p.WaitForExitAsync(cancellationToken);
-			return (p.ExitCode, output[0], output[1]);
+			return p.ExitCode;
 		}
 	}
 }

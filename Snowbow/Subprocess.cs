@@ -17,11 +17,13 @@ using System.Net;
 namespace Snowbow {
 	public class Subprocess {
 		public static async Task<string> PandocRenderAsync(string markdown, CancellationToken cancellationToken) {
-			var (_, stdout, stderr) = await Executor.ExecAsync("pandoc", "--no-highlight --mathml --eol=lf", markdown, cancellationToken);
-			if (!string.IsNullOrEmpty(stderr)) {
-				Logger.Log("Pandoc error, {0}", stderr);
+			var stdout = new StringWriter();
+			var stderr = new StringWriter();
+			var code = await Executor.ExecAsync("pandoc", "--no-highlight --mathml --eol=lf", new StringReader(markdown), stdout, stderr, cancellationToken);
+			if (!string.IsNullOrEmpty(stderr.ToString())) {
+				Logger.Log("Pandoc error, {0}", stderr.ToString());
 			}
-			return stdout;
+			return stdout.ToString();
 		}
 
 
@@ -247,15 +249,25 @@ namespace Snowbow {
 			MemoryFileSystem mfs = new MemoryFileSystem();
 			foreach (List<RuntimeModel> languagedArticles in articles.Values) {
 				foreach (RuntimeModel article in languagedArticles) {
-					string rendered = engine.CompileRenderAsync("index.cshtml", article).Result;
-					var (_, tidied, _) = await Executor.ExecAsync("tidy", "-utf8 --wrap 0 --tidy-mark no --drop-empty-elements no --quiet yes -indent --newline LF --output-bom no", rendered, cancellationToken);
-					mfs.CreateFile(article.AbsolutePath, tidied);
+					var rendered = await engine.CompileRenderAsync("index.cshtml", article);
+					var stdout = new StringWriter();
+					var stderr = new StringWriter();
+					var code = await Executor.ExecAsync("tidy", "-utf8 --wrap 0 --tidy-mark no --drop-empty-elements no --quiet yes -indent --newline LF --output-bom no", new StringReader(rendered), stdout, stderr, cancellationToken);
+					//if (!string.IsNullOrEmpty(stderr.ToString())) {
+					//	Logger.Log("Tidy error, {0}", stderr.ToString());
+					//}
+					mfs.CreateFile(article.AbsolutePath, stdout.ToString());
 				}
 			}
 			foreach (RuntimeModel page in pages) {
-				string rendered = engine.CompileRenderAsync("index.cshtml", page).Result;
-				var (_, tidied, _) = await Executor.ExecAsync("tidy", "-utf8 --wrap 0 --tidy-mark no --drop-empty-elements no --quiet yes -indent --newline LF --output-bom no", rendered, cancellationToken);
-				mfs.CreateFile(page.AbsolutePath, tidied);
+				var rendered = await engine.CompileRenderAsync("index.cshtml", page);
+				var stdout = new StringWriter();
+				var stderr = new StringWriter();
+				var code = await Executor.ExecAsync("tidy", "-utf8 --wrap 0 --tidy-mark no --drop-empty-elements no --quiet yes -indent --newline LF --output-bom no", new StringReader(rendered), stdout, stderr, cancellationToken);
+				//if (!string.IsNullOrEmpty(stderr.ToString())) {
+				//	Logger.Log("Tidy error, {0}", stderr.ToString());
+				//}
+				mfs.CreateFile(page.AbsolutePath, stdout.ToString());
 			}
 			return mfs;
 		}
@@ -334,20 +346,25 @@ namespace Snowbow {
 </html>");
 			return result;
 		}
-		public static async Task BuildAsync(CancellationToken cancellationToken) {
-			SiteConfig siteConfig = SiteConfig.Read();
+
+		public static async Task<MemoryFileSystem> GenerateAllAsync(SiteConfig siteConfig, CancellationToken cancellationToken) {
+			Logger.Log("Building...");
 			ThemeConfig themeConfig = ThemeConfig.Read(siteConfig);
 			var articles = await GenerateArticlesAsync(siteConfig, themeConfig, cancellationToken);
 			var pages = await GeneratePagesAsync(siteConfig, themeConfig, articles, cancellationToken);
 			MemoryFileSystem mfs = await RazorRenderAsync(siteConfig, articles, pages, cancellationToken);
-			//foreach (var kvp in mfs.ToArray()) {
-			//    mfs[kvp.Key] = Helper.MyUtf8Encoding.GetBytes(Helper.PrettifyHtml(Helper.MyUtf8Encoding.GetString(kvp.Value)));
-			//}
 			mfs.Merge(await CopyAssetsAsync(siteConfig, cancellationToken), Helper.MergeKeyExistedPolicy.Exception);
 			mfs.Merge(GenerateMeta(siteConfig, articles), Helper.MergeKeyExistedPolicy.Exception);
-			DirectoryInfo publishDirectory = new DirectoryInfo("public");
-			if (publishDirectory.Exists)
+			Logger.Log("Built successfully.");
+			return mfs;
+		}
+		public static async Task BuildAsync(CancellationToken cancellationToken) {
+			var siteConfig = SiteConfig.Read();
+			var mfs = await GenerateAllAsync(siteConfig, cancellationToken);
+			var publishDirectory = new DirectoryInfo("public");
+			if (publishDirectory.Exists) {
 				publishDirectory.Delete(true);
+			}
 			await mfs.WriteToDiskAsync(publishDirectory, 0, cancellationToken);
 		}
 
@@ -377,39 +394,31 @@ namespace Snowbow {
 					resp.Close(respContent, true);
 				}
 			});
-			ThemeConfig themeConfig = ThemeConfig.Read(siteConfig);
-			var articles = await GenerateArticlesAsync(siteConfig, themeConfig, cancellationToken);
-			var pages = await GeneratePagesAsync(siteConfig, themeConfig, articles, cancellationToken);
-			mfs = await RazorRenderAsync(siteConfig, articles, pages, cancellationToken);
-			//foreach (var kvp in mfs.ToArray()) {
-			//    mfs[kvp.Key] = Helper.MyUtf8Encoding.GetBytes(Helper.PrettifyHtml(Helper.MyUtf8Encoding.GetString(kvp.Value)));
-			//}
-			mfs.Merge(await CopyAssetsAsync(siteConfig, cancellationToken), Helper.MergeKeyExistedPolicy.Exception);
-			mfs.Merge(GenerateMeta(siteConfig, articles), Helper.MergeKeyExistedPolicy.Exception);
-			using FileSystemWatcher watcher = new FileSystemWatcher(Environment.CurrentDirectory);
+			mfs = await GenerateAllAsync(siteConfig, cancellationToken);
+			var watcher = new FileSystemWatcher(Environment.CurrentDirectory);
 			//watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Attributes | NotifyFilters.Size | NotifyFilters.LastWrite | NotifyFilters.LastAccess | NotifyFilters.CreationTime | NotifyFilters.Security;
 			watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite;
 			watcher.IncludeSubdirectories = true;
 
+			CancellationTokenSource? watcherBuildingCancellationTokenSource = null;
 			watcher.Changed += async (sender, args) => {
-				watcher.EnableRaisingEvents = false;
-				Logger.Log("Building...");
+				watcherBuildingCancellationTokenSource?.Cancel();
+				watcherBuildingCancellationTokenSource = new CancellationTokenSource();
+				Logger.Log("Debounce...");
 				try {
-					ThemeConfig themeConfig = ThemeConfig.Read(siteConfig);
-					var articles = await GenerateArticlesAsync(siteConfig, themeConfig, cancellationToken);
-					var pages = await GeneratePagesAsync(siteConfig, themeConfig, articles, cancellationToken);
-					mfs = await RazorRenderAsync(siteConfig, articles, pages, cancellationToken);
-					//foreach (var kvp in mfs.ToArray()) {
-					//    mfs[kvp.Key] = Helper.MyUtf8Encoding.GetBytes(Helper.PrettifyHtml(Helper.MyUtf8Encoding.GetString(kvp.Value)));
-					//}
-					mfs.Merge(await CopyAssetsAsync(siteConfig, cancellationToken), Helper.MergeKeyExistedPolicy.Exception);
-					mfs.Merge(GenerateMeta(siteConfig, articles), Helper.MergeKeyExistedPolicy.Exception);
+					await Task.Delay(TimeSpan.FromSeconds(2), watcherBuildingCancellationTokenSource.Token);
+				}
+				catch (TaskCanceledException e) {
+					Logger.Log(e.ToString());
+					return;
+				}
+				try {
+					mfs = await GenerateAllAsync(siteConfig, watcherBuildingCancellationTokenSource.Token);
 				}
 				catch (Exception e) {
 					Logger.Log(e.ToString());
+					return;
 				}
-				watcher.EnableRaisingEvents = true;
-				Logger.Log("Watching " + watcher.Path);
 			};
 			watcher.EnableRaisingEvents = true;
 			Logger.Log("Watching " + watcher.Path);
