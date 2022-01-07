@@ -398,6 +398,7 @@ namespace Snowbow {
 			var watcher = new FileSystemWatcher(Environment.CurrentDirectory);
 			//watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Attributes | NotifyFilters.Size | NotifyFilters.LastWrite | NotifyFilters.LastAccess | NotifyFilters.CreationTime | NotifyFilters.Security;
 			watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite;
+			watcher.Filter = "*.md";
 			watcher.IncludeSubdirectories = true;
 
 			CancellationTokenSource? watcherBuildingCancellationTokenSource = null;
