@@ -1,3 +1,5 @@
+# This project is currently archived. For new usage, please consider [SnowbowHandlebars](https://github.com/Yuki-Nagato/SnowbowHandlebars).
+
 # Snowbow
 
 A blog framework, compulsorily i18n support.
